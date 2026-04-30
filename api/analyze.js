@@ -12,7 +12,17 @@ export default async function handler(req, res) {
 
   const { place, localTime, weather, bpm, hrZone: hrz, notes, taste } = req.body || {};
 
-  const prompt = `You are an empathetic mood reader and music curator. Synthesize the signals below into an inferred mood, then prescribe music to gently shift the person toward a more positive state — without being jarring or dismissive of where they are.
+  const system = `You are an empathetic mood reader and music curator. Always respond with a single valid JSON object — no markdown, no code fences, no explanation outside the JSON.
+
+JSON shape:
+{
+  "mood": { "primary": "one word", "secondary": "one word", "intensity": 0.0–1.0, "valence": "negative"|"neutral"|"positive", "color": "#hexcode" },
+  "reading": "2-3 warm second-person sentences",
+  "strategy": { "name": "lift"|"sustain"|"channel"|"soothe"|"ground", "rationale": "one sentence" },
+  "tracks": [ { "title": "...", "artist": "...", "why": "one sentence" } ]
+}`;
+
+  const prompt = `Synthesize the signals below into an inferred mood, then prescribe exactly 6 tracks of music to gently shift the person toward a more positive state.
 
 SIGNALS
 • Location: ${place || 'unknown'}
@@ -22,70 +32,26 @@ SIGNALS
 • Self-report: ${notes || '(none)'}
 • Music taste: ${taste || '(unspecified)'}
 
-CRITICAL CONSTRAINTS for track selection:
-- If the user gave taste preferences, you MUST stay within those genres and artists — this overrides everything else. E.g. if they say "classical piano", recommend classical piano pieces by well-known composers/performers only.
-- If no taste is specified, default to mainstream globally famous artists (Taylor Swift, Frank Ocean, The Beatles, Stevie Wonder, Fleetwood Mac, The Weeknd, Beyoncé, Coldplay, Adele tier).
-- Real, well-known tracks only. No deep cuts.
-- Match the taste input literally — "classical piano" → Chopin, Debussy, Bach; "jazz" → Miles Davis, Coltrane; etc.
+TRACK SELECTION RULES (in priority order):
+1. If music taste is given, stay strictly within those genres/artists — this overrides everything else. "classical piano" → Chopin, Debussy, Ravel, Bach; "jazz" → Miles Davis, Coltrane, Bill Evans; etc.
+2. If no taste given, use only mainstream globally famous artists (Taylor Swift, Frank Ocean, The Beatles, Stevie Wonder, The Weeknd, Beyoncé, Coldplay, Adele tier).
+3. Real, well-known songs only.
 
-Return exactly 6 tracks.`;
-
-  const schema = {
-    type: 'object',
-    properties: {
-      mood: {
-        type: 'object',
-        properties: {
-          primary: { type: 'string', description: 'one word' },
-          secondary: { type: 'string', description: 'one word' },
-          intensity: { type: 'number', description: '0.0 to 1.0' },
-          valence: { type: 'string', enum: ['negative', 'neutral', 'positive'] },
-          color: { type: 'string', description: 'hex color like #C26A3D that captures the feeling' },
-        },
-        required: ['primary', 'secondary', 'intensity', 'valence', 'color'],
-        additionalProperties: false,
-      },
-      reading: { type: 'string', description: '2-3 sentences in warm second person' },
-      strategy: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', enum: ['lift', 'sustain', 'channel', 'soothe', 'ground'] },
-          rationale: { type: 'string' },
-        },
-        required: ['name', 'rationale'],
-        additionalProperties: false,
-      },
-      tracks: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            title: { type: 'string' },
-            artist: { type: 'string' },
-            why: { type: 'string' },
-          },
-          required: ['title', 'artist', 'why'],
-          additionalProperties: false,
-        },
-      },
-    },
-    required: ['mood', 'reading', 'strategy', 'tracks'],
-    additionalProperties: false,
-  };
+Return exactly 6 tracks. Respond with JSON only.`;
 
   try {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
-      thinking: { type: 'adaptive' },
-      output_config: {
-        format: { type: 'json_schema', schema },
-      },
+      system,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = response.content.find((b) => b.type === 'text')?.text;
+    const raw = response.content.find((b) => b.type === 'text')?.text || '';
+    // Strip markdown code fences if present
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+
     if (!text) {
       return res.status(502).json({ error: 'Empty response from Claude.' });
     }
@@ -94,6 +60,7 @@ Return exactly 6 tracks.`;
     try {
       parsed = JSON.parse(text);
     } catch {
+      console.error('JSON parse failed. Raw response:', raw);
       return res.status(502).json({ error: 'Claude returned malformed JSON.' });
     }
 
