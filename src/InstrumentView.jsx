@@ -295,6 +295,16 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
   const [preloadIdx, setPreloadIdx] = useState(null); // track iframe to mount during speech for overlap
   const timerRef = useRef(null);
   const overlapTimerRef = useRef(null);
+  const radioIdxRef = useRef(-1);
+  const radioPhaseRef = useRef('idle');
+  const radioOnRef = useRef(false);
+  const advanceCallbackRef = useRef(null);
+  const audioRef = useRef(null); // ElevenLabs Audio element
+
+  // Keep refs in sync so async callbacks always read current values
+  useEffect(() => { radioIdxRef.current = radioIdx; }, [radioIdx]);
+  useEffect(() => { radioPhaseRef.current = radioPhase; }, [radioPhase]);
+  useEffect(() => { radioOnRef.current = radioOn; }, [radioOn]);
 
   useEffect(() => {
     if (!tracks?.length) return;
@@ -309,33 +319,112 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
 
   useEffect(() => {
     return () => {
-      window.speechSynthesis?.cancel();
+      stopAudio();
       clearTimeout(timerRef.current);
       clearTimeout(overlapTimerRef.current);
     };
   }, []);
 
-  // Speak text, then call onEnd. If nextIdx is provided, mounts that track's iframe
-  // ~4 seconds before speech ends so music begins under the DJ's last words.
-  function speak(text, onEnd, nextIdx) {
-    window.speechSynthesis.cancel();
-    clearTimeout(overlapTimerRef.current);
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 0.88;
-    utt.pitch = 0.95;
+  // Listen for Spotify iframe playback_update events to auto-advance at track end
+  useEffect(() => {
+    function handleMessage(e) {
+      if (e.origin !== 'https://open.spotify.com') return;
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type !== 'playback_update') return;
+        const { duration, position, is_paused } = data.payload || {};
+        if (!radioOnRef.current || radioPhaseRef.current !== 'music') return;
+        if (duration && position && !is_paused && duration - position < 3000) {
+          const cb = advanceCallbackRef.current;
+          if (cb) {
+            advanceCallbackRef.current = null;
+            clearTimeout(timerRef.current);
+            cb();
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
-    if (nextIdx !== undefined && nextIdx !== null && nextIdx < tracks.length) {
-      // Estimate speech duration: ~130 wpm × rate 0.88 ≈ 114 wpm
+  function stopAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+  }
+
+  // Speak text via ElevenLabs, then call onEnd.
+  // If nextIdx is given, starts the next track's iframe ~4 s before the speech ends.
+  async function speak(text, onEnd, nextIdx) {
+    stopAudio();
+    clearTimeout(overlapTimerRef.current);
+
+    let overlapScheduled = false;
+    function scheduleOverlap(durationMs) {
+      if (overlapScheduled) return;
+      if (nextIdx !== undefined && nextIdx !== null && nextIdx < tracks.length) {
+        const overlapAt = Math.max(800, durationMs - 4000);
+        overlapTimerRef.current = setTimeout(() => setPreloadIdx(nextIdx), overlapAt);
+        overlapScheduled = true;
+      }
+    }
+
+    try {
+      const res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error(`speak API ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.addEventListener('loadedmetadata', () => {
+        if (isFinite(audio.duration)) scheduleOverlap(audio.duration * 1000);
+      });
+      audio.addEventListener('ended', () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        clearTimeout(overlapTimerRef.current);
+        onEnd();
+      });
+      audio.addEventListener('error', () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        onEnd();
+      });
+
+      await audio.play();
+      // If duration already known (cached), schedule overlap now
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        scheduleOverlap(audio.duration * 1000);
+      } else {
+        // Estimate from word count as a fallback
+        const words = text.trim().split(/\s+/).length;
+        scheduleOverlap((words / 114) * 60000);
+      }
+    } catch (e) {
+      console.warn('ElevenLabs speak failed, falling back to browser TTS', e);
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = 0.88;
+      utt.pitch = 0.95;
       const words = text.trim().split(/\s+/).length;
       const estimatedMs = (words / 114) * 60000;
       const overlapAt = Math.max(800, estimatedMs - 4000);
-      utt.onstart = () => {
-        overlapTimerRef.current = setTimeout(() => setPreloadIdx(nextIdx), overlapAt);
-      };
+      if (nextIdx !== undefined && nextIdx !== null && nextIdx < tracks.length) {
+        utt.onstart = () => {
+          overlapTimerRef.current = setTimeout(() => setPreloadIdx(nextIdx), overlapAt);
+        };
+      }
+      utt.onend = () => { clearTimeout(overlapTimerRef.current); onEnd(); };
+      window.speechSynthesis.speak(utt);
     }
-
-    utt.onend = () => { clearTimeout(overlapTimerRef.current); onEnd(); };
-    window.speechSynthesis.speak(utt);
   }
 
   function startRadio() {
@@ -353,6 +442,7 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
 
   function advanceTo(idx) {
     setPreloadIdx(null);
+    advanceCallbackRef.current = null;
     if (idx >= tracks.length) {
       const outro = `That was your Attune session. The strategy was ${strategyName}. Hope this brought you a little closer to yourself.`;
       setRadioIdx(tracks.length);
@@ -364,9 +454,9 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
     setRadioIdx(idx);
     setRadioPhase('music');
     setSpeechText('');
-    // auto-advance after 45 seconds
-    timerRef.current = setTimeout(() => {
-      window.speechSynthesis.cancel();
+
+    function doAdvance() {
+      stopAudio();
       const next = tracks[idx + 1];
       const between = idx + 1 < tracks.length
         ? `Up next — ${next.title} by ${next.artist}. ${next.why}`
@@ -374,13 +464,22 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
       setRadioPhase('speaking');
       setSpeechText(between);
       speak(between, () => advanceTo(idx + 1), idx + 1);
-    }, 45000);
+    }
+
+    // Spotify postMessage listener will call this when the track ends naturally.
+    // Fallback: auto-advance after 4 minutes in case the event never fires.
+    advanceCallbackRef.current = doAdvance;
+    timerRef.current = setTimeout(() => {
+      const cb = advanceCallbackRef.current;
+      if (cb) { advanceCallbackRef.current = null; cb(); }
+    }, 240000);
   }
 
   function skipCurrent() {
     clearTimeout(timerRef.current);
     clearTimeout(overlapTimerRef.current);
-    window.speechSynthesis.cancel();
+    advanceCallbackRef.current = null;
+    stopAudio();
     setPreloadIdx(null);
     const next = tracks[radioIdx + 1];
     const between = radioIdx + 1 < tracks.length
@@ -392,9 +491,10 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
   }
 
   function stopRadio() {
-    window.speechSynthesis.cancel();
+    stopAudio();
     clearTimeout(timerRef.current);
     clearTimeout(overlapTimerRef.current);
+    advanceCallbackRef.current = null;
     setRadioOn(false);
     setRadioIdx(-1);
     setRadioPhase('idle');
