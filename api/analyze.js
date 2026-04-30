@@ -28,7 +28,7 @@ CRITICAL CONSTRAINTS for track selection:
 - Real, well-known tracks only. No deep cuts.
 - Match the taste input literally — "classical piano" → Chopin, Debussy, Bach; "jazz" → Miles Davis, Coltrane; etc.
 
-Return exactly 5 tracks.`;
+Return exactly 6 tracks.`;
 
   const schema = {
     type: 'object',

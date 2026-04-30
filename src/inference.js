@@ -155,7 +155,7 @@ export function ruleBasedInfer(s) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  const tracks = pool.slice(0, 5);
+  const tracks = pool.slice(0, 6);
 
   const wText = s.weather ? (s.weather.is_day ? 'daytime' : 'nighttime') : '';
   const skyText = s.weather ? (WEATHER[s.weather.weather_code]?.label || '') : '';
