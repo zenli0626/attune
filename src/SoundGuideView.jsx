@@ -147,7 +147,7 @@ export default function SoundGuideView() {
       {/* STRATEGIES */}
       <div style={{ marginBottom: 56 }}>
         <SectionDivider label="Strategies" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 1, background: INK, border: `1px solid ${INK}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 0 }}>
           {STRATEGIES.map(s => <StrategyCard key={s.name} s={s} />)}
         </div>
       </div>
@@ -165,7 +165,7 @@ export default function SoundGuideView() {
 
 function StrategyCard({ s }) {
   return (
-    <div style={{ background: PAPER, padding: 24 }}>
+    <div style={{ background: PAPER, padding: 24, border: `1px solid ${INK}`, marginRight: -1, marginBottom: -1 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.color, letterSpacing: '0.1em' }}>{s.n}</span>
         <span style={{
