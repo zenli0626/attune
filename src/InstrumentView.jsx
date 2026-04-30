@@ -469,21 +469,28 @@ function EmptyState() {
 
 function Reading({ data, moodColor }) {
   const { mood, reading, strategy, tracks } = data;
-  const firstQ = tracks?.length ? encodeURIComponent(`${tracks[0].title} ${tracks[0].artist}`) : '';
   const [copied, setCopied] = useState(false);
+  const [spotifyIds, setSpotifyIds] = useState({});
+
+  useEffect(() => {
+    if (!tracks?.length) return;
+    setSpotifyIds({});
+    tracks.forEach((t, i) => {
+      fetch(`/api/spotify-search?q=${encodeURIComponent(`${t.title} ${t.artist}`)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.id) setSpotifyIds(prev => ({ ...prev, [i]: d.id })); })
+        .catch(() => {});
+    });
+  }, [tracks]);
 
   function share() {
     const lines = [
       `Attune · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`,
-      ``,
-      `${mood.primary}, ${mood.secondary}`,
+      ``, `${mood.primary}, ${mood.secondary}`,
       `Intensity ${Math.round((mood.intensity || 0) * 10)}/10 · Valence: ${mood.valence}`,
-      ``,
-      reading,
-      ``,
+      ``, reading, ``,
       `Strategy: ${strategy.name} — ${strategy.rationale}`,
-      ``,
-      `Prescription:`,
+      ``, `Prescription:`,
       ...(tracks || []).map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`),
     ];
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -510,13 +517,9 @@ function Reading({ data, moodColor }) {
       </div>
       <div style={{ marginBottom: 24 }}>
         <div style={{
-          fontFamily: "'Fraunces', serif",
-          fontSize: 'clamp(40px, 6vw, 64px)',
-          fontStyle: 'italic',
-          fontWeight: 400,
-          lineHeight: 1,
-          letterSpacing: '-0.03em',
-          fontVariationSettings: "'opsz' 144, 'SOFT' 80",
+          fontFamily: "'Fraunces', serif", fontSize: 'clamp(40px, 6vw, 64px)',
+          fontStyle: 'italic', fontWeight: 400, lineHeight: 1,
+          letterSpacing: '-0.03em', fontVariationSettings: "'opsz' 144, 'SOFT' 80",
         }}>
           <span style={{ color: moodColor }}>{mood.primary}</span>
           <span style={{ color: INK_SOFT }}>, </span>
@@ -546,32 +549,13 @@ function Reading({ data, moodColor }) {
 
       <Mono style={{ marginBottom: 14, display: 'block' }}>THE PRESCRIPTION · {tracks?.length || 0} TRACKS</Mono>
 
-      {tracks?.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-          <a href={`https://music.youtube.com/search?q=${firstQ}`} target="_blank" rel="noreferrer" style={{ ...playAll, background: INK, color: PAPER }}>
-            ▶ Play first on YT Music
-          </a>
-          <a href={`https://open.spotify.com/search/${firstQ}`} target="_blank" rel="noreferrer" style={{ ...playAll, background: 'transparent', color: INK }}>
-            ▶ Play first on Spotify
-          </a>
-        </div>
-      )}
-
       <div>
-        {tracks?.map((t, i) => <Track key={i} t={t} i={i} accent={moodColor} />)}
+        {tracks?.map((t, i) => <Track key={i} t={t} i={i} accent={moodColor} spotifyId={spotifyIds[i]} />)}
       </div>
     </div>
   );
 }
 
-const playAll = {
-  flex: 1, minWidth: 160,
-  padding: '12px 16px',
-  fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.15em',
-  textTransform: 'uppercase', textDecoration: 'none', textAlign: 'center',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-  border: `1px solid ${INK}`,
-};
 
 function Meter({ value, color }) {
   return (
@@ -590,32 +574,8 @@ function Meter({ value, color }) {
   );
 }
 
-function Track({ t, i, accent }) {
+function Track({ t, i, accent, spotifyId }) {
   const q = encodeURIComponent(`${t.title} ${t.artist}`);
-  const [spotifyId, setSpotifyId] = useState(null);
-  const [loadingSpotify, setLoadingSpotify] = useState(false);
-  const [embedOpen, setEmbedOpen] = useState(false);
-
-  async function openEmbed() {
-    if (embedOpen) { setEmbedOpen(false); return; }
-    if (spotifyId) { setEmbedOpen(true); return; }
-    setLoadingSpotify(true);
-    try {
-      const res = await fetch(`/api/spotify-search?q=${q}`);
-      if (res.ok) {
-        const { id } = await res.json();
-        setSpotifyId(id);
-        setEmbedOpen(true);
-      } else {
-        window.open(`https://open.spotify.com/search/${q}`, '_blank');
-      }
-    } catch {
-      window.open(`https://open.spotify.com/search/${q}`, '_blank');
-    } finally {
-      setLoadingSpotify(false);
-    }
-  }
-
   return (
     <div style={{ padding: '16px 0', borderBottom: `1px solid ${INK}33` }}>
       <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 16, alignItems: 'start' }}>
@@ -631,32 +591,24 @@ function Track({ t, i, accent }) {
             {t.why}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <button onClick={openEmbed} disabled={loadingSpotify} style={{
-            ...linkBtn, cursor: loadingSpotify ? 'wait' : 'pointer',
-            background: embedOpen ? INK : 'transparent',
-            color: embedOpen ? PAPER : INK,
-            border: `1px solid ${INK}`,
-          }}>
-            {loadingSpotify ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : '▶'}
-            {loadingSpotify ? 'Finding…' : embedOpen ? 'Close' : 'Play'}
-          </button>
-          <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
-            Open <ExternalLink size={10} />
-          </a>
-        </div>
+        <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
+          Open <ExternalLink size={10} />
+        </a>
       </div>
-      {embedOpen && spotifyId && (
-        <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 10 }}>
+        {spotifyId ? (
           <iframe
             src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0`}
             width="100%" height="80" frameBorder="0"
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-            style={{ border: 'none' }}
+            loading="lazy" style={{ border: 'none', display: 'block' }}
           />
-        </div>
-      )}
+        ) : (
+          <div style={{ height: 80, background: `${INK}08`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: INK_SOFT }} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
