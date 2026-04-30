@@ -9,8 +9,15 @@ export default function InstrumentView() {
   const [place, setPlace] = useState('');
   const [weather, setWeather] = useState(null);
   const [bpm, setBpm] = useState(72);
-  const [notes, setNotes] = useState('');
+  const [selectedPresets, setSelectedPresets] = useState(new Set());
+  const [customNote, setCustomNote] = useState('');
+  const [otherOpen, setOtherOpen] = useState(false);
   const [taste, setTaste] = useState('');
+
+  const notes = [
+    ...Array.from(selectedPresets),
+    customNote.trim(),
+  ].filter(Boolean).join('. ');
   const [mode, setMode] = useState(() => localStorage.getItem('attune-mode') || 'demo');
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzingStep, setAnalyzingStep] = useState(0);
@@ -208,16 +215,13 @@ export default function InstrumentView() {
           </div>
 
           <SectionLabel n="03" label="What's on your mind" />
-          <textarea
-            value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="A sentence or two about the day, a feeling, a thought you can't shake…"
-            rows={3}
-            style={{
-              width: '100%', background: 'transparent', border: `1px solid ${INK}`,
-              padding: 14, fontSize: 15, color: INK, resize: 'vertical', outline: 'none',
-              marginBottom: 24, fontStyle: 'italic', fontFamily: "'Fraunces', serif",
-              boxSizing: 'border-box',
-            }}
+          <NotesSelector
+            selected={selectedPresets}
+            setSelected={setSelectedPresets}
+            customNote={customNote}
+            setCustomNote={setCustomNote}
+            otherOpen={otherOpen}
+            setOtherOpen={setOtherOpen}
           />
 
           <SectionLabel n="04" label="What you like to listen to" />
@@ -348,6 +352,70 @@ const errBtn = {
   padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit',
   fontSize: 13, color: INK,
 };
+
+const NOTE_PRESETS = [
+  "Can't focus", 'Stressed', 'Anxious', 'Tired but wired',
+  'Feeling down', 'Bored', 'Missing someone', 'Restless',
+  'Overwhelmed', 'Feeling good', 'Lonely', 'Excited',
+];
+
+function NotesSelector({ selected, setSelected, customNote, setCustomNote, otherOpen, setOtherOpen }) {
+  function toggle(preset) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(preset) ? next.delete(preset) : next.add(preset);
+      return next;
+    });
+  }
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: otherOpen ? 10 : 0 }}>
+        {NOTE_PRESETS.map(p => {
+          const active = selected.has(p);
+          return (
+            <button key={p} onClick={() => toggle(p)} style={{
+              background: active ? INK : 'transparent',
+              color: active ? PAPER : INK,
+              border: `1px solid ${active ? INK : INK_SOFT}`,
+              padding: '7px 14px',
+              fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 14,
+              cursor: 'pointer',
+              transition: 'background 0.15s ease, color 0.15s ease',
+            }}>
+              {p}
+            </button>
+          );
+        })}
+        <button onClick={() => { setOtherOpen(o => !o); }} style={{
+          background: otherOpen ? AMBER : 'transparent',
+          color: otherOpen ? PAPER : INK_SOFT,
+          border: `1px solid ${otherOpen ? AMBER : INK_SOFT}`,
+          padding: '7px 14px',
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.1em',
+          textTransform: 'uppercase', cursor: 'pointer',
+          transition: 'background 0.15s ease, color 0.15s ease',
+        }}>
+          Other…
+        </button>
+      </div>
+      {otherOpen && (
+        <textarea
+          value={customNote} onChange={e => setCustomNote(e.target.value)}
+          placeholder="A thought you can't shake…"
+          rows={3}
+          autoFocus
+          style={{
+            width: '100%', background: 'transparent', border: `1px solid ${INK}`,
+            padding: 14, fontSize: 15, color: INK, resize: 'vertical', outline: 'none',
+            fontStyle: 'italic', fontFamily: "'Fraunces', serif", boxSizing: 'border-box',
+            marginTop: 2,
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 function SectionLabel({ n, label }) {
   return (
