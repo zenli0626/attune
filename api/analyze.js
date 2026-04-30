@@ -23,10 +23,10 @@ SIGNALS
 • Music taste: ${taste || '(unspecified)'}
 
 CRITICAL CONSTRAINTS for track selection:
-- ONLY mainstream, globally famous artists (e.g. Taylor Swift, Frank Ocean, The Beatles, Stevie Wonder, Fleetwood Mac, The Weeknd, Beyoncé, Kendrick Lamar, Coldplay, Adele, Drake, Billie Eilish tier).
-- NO classical, jazz instrumentals, ambient, or obscure indie.
-- If the user gave taste preferences, lean heavily into those exact artists/genres.
-- Real, well-known songs only. No deep cuts.
+- If the user gave taste preferences, you MUST stay within those genres and artists — this overrides everything else. E.g. if they say "classical piano", recommend classical piano pieces by well-known composers/performers only.
+- If no taste is specified, default to mainstream globally famous artists (Taylor Swift, Frank Ocean, The Beatles, Stevie Wonder, Fleetwood Mac, The Weeknd, Beyoncé, Coldplay, Adele tier).
+- Real, well-known tracks only. No deep cuts.
+- Match the taste input literally — "classical piano" → Chopin, Debussy, Bach; "jazz" → Miles Davis, Coltrane; etc.
 
 Return exactly 5 tracks.`;
 
