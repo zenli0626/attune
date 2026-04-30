@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, MapPin, Sparkles, Loader2, Wind, RefreshCw, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Heart, MapPin, Sparkles, Loader2, Wind, RefreshCw, ExternalLink, Copy, Check } from 'lucide-react';
 import { INK, INK_SOFT, AMBER, PAPER } from './constants.js';
 import { weatherInfo, hrZone, ruleBasedInfer, WEATHER } from './inference.js';
+
+const ANALYZING_STEPS = ['reading the sky…', 'listening to your pulse…', 'parsing your words…', 'synthesizing…'];
 
 export default function InstrumentView() {
   const [place, setPlace] = useState('');
@@ -9,11 +11,31 @@ export default function InstrumentView() {
   const [bpm, setBpm] = useState(72);
   const [notes, setNotes] = useState('');
   const [taste, setTaste] = useState('');
-  const [mode, setMode] = useState('demo'); // 'demo' | 'ai'
+  const [mode, setMode] = useState(() => localStorage.getItem('attune-mode') || 'demo');
   const [analyzing, setAnalyzing] = useState(false);
-  const [reading, setReading] = useState(null);
+  const [analyzingStep, setAnalyzingStep] = useState(0);
+  const [reading, setReading] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('attune-reading') || 'null'); } catch { return null; }
+  });
   const [error, setError] = useState(null);
   const [locStatus, setLocStatus] = useState('detecting');
+  const stepRef = useRef(null);
+
+  useEffect(() => { localStorage.setItem('attune-mode', mode); }, [mode]);
+  useEffect(() => {
+    if (reading) localStorage.setItem('attune-reading', JSON.stringify(reading));
+  }, [reading]);
+
+  useEffect(() => {
+    if (!analyzing) { clearInterval(stepRef.current); setAnalyzingStep(0); return; }
+    setAnalyzingStep(0);
+    let i = 0;
+    stepRef.current = setInterval(() => {
+      i = (i + 1) % ANALYZING_STEPS.length;
+      setAnalyzingStep(i);
+    }, 900);
+    return () => clearInterval(stepRef.current);
+  }, [analyzing]);
 
   useEffect(() => {
     const fallback = () => {
@@ -248,10 +270,19 @@ export default function InstrumentView() {
 
           {analyzing && (
             <div style={{ paddingTop: 80, textAlign: 'center', color: INK_SOFT }}>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic', marginBottom: 12 }}>
-                reading the room…
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic', marginBottom: 16, minHeight: 36 }}>
+                {ANALYZING_STEPS[analyzingStep]}
               </div>
-              <Mono>weather · pulse · words · place</Mono>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                {ANALYZING_STEPS.map((_, i) => (
+                  <div key={i} style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: i === analyzingStep ? AMBER : 'transparent',
+                    border: `1px solid ${i === analyzingStep ? AMBER : INK_SOFT}`,
+                    transition: 'background 0.3s ease, border-color 0.3s ease',
+                  }} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -371,10 +402,45 @@ function EmptyState() {
 function Reading({ data, moodColor }) {
   const { mood, reading, strategy, tracks } = data;
   const firstQ = tracks?.length ? encodeURIComponent(`${tracks[0].title} ${tracks[0].artist}`) : '';
+  const [copied, setCopied] = useState(false);
+
+  function share() {
+    const lines = [
+      `Attune · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`,
+      ``,
+      `${mood.primary}, ${mood.secondary}`,
+      `Intensity ${Math.round((mood.intensity || 0) * 10)}/10 · Valence: ${mood.valence}`,
+      ``,
+      reading,
+      ``,
+      `Strategy: ${strategy.name} — ${strategy.rationale}`,
+      ``,
+      `Prescription:`,
+      ...(tracks || []).map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`),
+    ];
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
     <div className="rise" style={{ position: 'relative', zIndex: 1 }}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <Mono style={{ marginBottom: 8, display: 'block' }}>THE READING</Mono>
+        <button onClick={share} style={{
+          background: 'transparent', border: `1px solid ${INK}`, cursor: 'pointer',
+          padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em',
+          color: copied ? AMBER : INK_SOFT, textTransform: 'uppercase',
+          transition: 'color 0.2s ease, border-color 0.2s ease',
+          borderColor: copied ? AMBER : INK,
+        }}>
+          {copied ? <Check size={10} /> : <Copy size={10} />}
+          {copied ? 'Copied' : 'Share'}
+        </button>
+      </div>
+      <div style={{ marginBottom: 24 }}>
         <div style={{
           fontFamily: "'Fraunces', serif",
           fontSize: 'clamp(40px, 6vw, 64px)',

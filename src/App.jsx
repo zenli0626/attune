@@ -8,8 +8,15 @@ export default function App() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30000);
-    return () => clearInterval(id);
+    // sync to the next minute boundary so the displayed time is always current
+    const tick = () => setNow(new Date());
+    const msUntilNextMinute = 60000 - (Date.now() % 60000);
+    const timeout = setTimeout(() => {
+      tick();
+      const id = setInterval(tick, 60000);
+      return () => clearInterval(id);
+    }, msUntilNextMinute);
+    return () => clearTimeout(timeout);
   }, []);
 
   return (
