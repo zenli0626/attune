@@ -76,7 +76,7 @@ Return exactly 5 tracks.`;
   try {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
-      model: 'claude-opus-4-7',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       thinking: { type: 'adaptive' },
       output_config: {

@@ -524,31 +524,71 @@ function Meter({ value, color }) {
 
 function Track({ t, i, accent }) {
   const q = encodeURIComponent(`${t.title} ${t.artist}`);
+  const [spotifyId, setSpotifyId] = useState(null);
+  const [loadingSpotify, setLoadingSpotify] = useState(false);
+  const [embedOpen, setEmbedOpen] = useState(false);
+
+  async function openEmbed() {
+    if (embedOpen) { setEmbedOpen(false); return; }
+    if (spotifyId) { setEmbedOpen(true); return; }
+    setLoadingSpotify(true);
+    try {
+      const res = await fetch(`/api/spotify-search?q=${q}`);
+      if (res.ok) {
+        const { id } = await res.json();
+        setSpotifyId(id);
+        setEmbedOpen(true);
+      } else {
+        window.open(`https://open.spotify.com/search/${q}`, '_blank');
+      }
+    } catch {
+      window.open(`https://open.spotify.com/search/${q}`, '_blank');
+    } finally {
+      setLoadingSpotify(false);
+    }
+  }
+
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 16,
-      padding: '16px 0', borderBottom: `1px solid ${INK}33`, alignItems: 'start',
-    }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent, letterSpacing: '0.1em', paddingTop: 4 }}>
-        {String(i + 1).padStart(2, '0')}
-      </div>
-      <div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
-          {t.title}
+    <div style={{ padding: '16px 0', borderBottom: `1px solid ${INK}33` }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 16, alignItems: 'start' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent, letterSpacing: '0.1em', paddingTop: 4 }}>
+          {String(i + 1).padStart(2, '0')}
         </div>
-        <div style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>by {t.artist}</div>
-        <div style={{ fontSize: 13, color: INK, marginTop: 8, lineHeight: 1.5, maxWidth: 500 }}>
-          {t.why}
+        <div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+            {t.title}
+          </div>
+          <div style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>by {t.artist}</div>
+          <div style={{ fontSize: 13, color: INK, marginTop: 8, lineHeight: 1.5, maxWidth: 500 }}>
+            {t.why}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          <button onClick={openEmbed} disabled={loadingSpotify} style={{
+            ...linkBtn, cursor: loadingSpotify ? 'wait' : 'pointer',
+            background: embedOpen ? INK : 'transparent',
+            color: embedOpen ? PAPER : INK,
+            border: `1px solid ${INK}`,
+          }}>
+            {loadingSpotify ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : '▶'}
+            {loadingSpotify ? 'Finding…' : embedOpen ? 'Close' : 'Play'}
+          </button>
+          <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
+            Open <ExternalLink size={10} />
+          </a>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-        <a href={`https://music.youtube.com/search?q=${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
-          YT Music <ExternalLink size={10} />
-        </a>
-        <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
-          Spotify <ExternalLink size={10} />
-        </a>
-      </div>
+      {embedOpen && spotifyId && (
+        <div style={{ marginTop: 12 }}>
+          <iframe
+            src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0`}
+            width="100%" height="80" frameBorder="0"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            style={{ border: 'none' }}
+          />
+        </div>
+      )}
     </div>
   );
 }
