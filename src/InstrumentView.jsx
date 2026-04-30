@@ -172,11 +172,7 @@ export default function InstrumentView() {
           <NotesSelector selected={selectedPresets} setSelected={setSelectedPresets} customNote={customNote} setCustomNote={setCustomNote} otherOpen={otherOpen} setOtherOpen={setOtherOpen} />
 
           <SectionLabel n="04" label="What you like to listen to" />
-          <input
-            type="text" value={taste} onChange={(e) => setTaste(e.target.value)}
-            placeholder="e.g. Taylor Swift, The Weeknd, Fleetwood Mac, Coldplay, Frank Ocean…"
-            style={{ width: '100%', background: 'transparent', border: `1px solid ${INK}`, padding: 14, fontSize: 15, color: INK, outline: 'none', marginBottom: 28, fontFamily: "'Fraunces', serif", fontStyle: 'italic', boxSizing: 'border-box' }}
-          />
+          <TasteSelector taste={taste} setTaste={setTaste} />
 
           <button
             onClick={analyze} disabled={analyzing}
@@ -732,6 +728,72 @@ function NotesSelector({ selected, setSelected, customNote, setCustomNote, other
       {otherOpen && (
         <textarea value={customNote} onChange={e => setCustomNote(e.target.value)} placeholder="A thought you can't shake…" rows={3} autoFocus
           style={{ width: '100%', background: 'transparent', border: `1px solid ${INK}`, padding: 14, fontSize: 15, color: INK, resize: 'vertical', outline: 'none', fontStyle: 'italic', fontFamily: "'Fraunces', serif", boxSizing: 'border-box', marginTop: 2 }} />
+      )}
+    </div>
+  );
+}
+
+const TASTE_PRESETS = ['Pop', 'R&B / Soul', 'Hip-Hop', 'Rock', 'Indie', 'Jazz', 'Classical / Piano', 'Electronic', 'Folk / Acoustic', 'Country', 'Latin', 'Metal'];
+
+function TasteSelector({ taste, setTaste }) {
+  const [custom, setCustom] = useState('');
+
+  function toggle(p) {
+    setTaste(prev => {
+      const parts = prev.split(',').map(s => s.trim()).filter(Boolean);
+      const idx = parts.findIndex(s => s.toLowerCase() === p.toLowerCase());
+      if (idx >= 0) {
+        parts.splice(idx, 1);
+      } else {
+        parts.push(p);
+      }
+      return parts.join(', ');
+    });
+  }
+
+  function isActive(p) {
+    return taste.split(',').map(s => s.trim().toLowerCase()).includes(p.toLowerCase());
+  }
+
+  function handleCustomKey(e) {
+    if ((e.key === 'Enter' || e.key === ',') && custom.trim()) {
+      e.preventDefault();
+      setTaste(prev => {
+        const parts = prev.split(',').map(s => s.trim()).filter(Boolean);
+        parts.push(custom.trim());
+        return parts.join(', ');
+      });
+      setCustom('');
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        {TASTE_PRESETS.map(p => {
+          const active = isActive(p);
+          return (
+            <button key={p} onClick={() => toggle(p)} style={{ background: active ? INK : 'transparent', color: active ? PAPER : INK, border: `1px solid ${active ? INK : INK_SOFT}`, padding: '7px 14px', fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 14, cursor: 'pointer', transition: 'background 0.15s ease, color 0.15s ease' }}>{p}</button>
+          );
+        })}
+      </div>
+      <input
+        type="text" value={custom}
+        onChange={e => setCustom(e.target.value)}
+        onKeyDown={handleCustomKey}
+        placeholder="Or type an artist / genre and press Enter…"
+        style={{ width: '100%', background: 'transparent', border: `1px solid ${INK}`, padding: 14, fontSize: 15, color: INK, outline: 'none', fontFamily: "'Fraunces', serif", fontStyle: 'italic', boxSizing: 'border-box' }}
+      />
+      {taste && (
+        <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: INK_SOFT, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Selected:</span>
+          {taste.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+            <span key={s} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: AMBER, border: `1px solid ${AMBER}`, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {s}
+              <button onClick={() => setTaste(prev => prev.split(',').map(t => t.trim()).filter(t => t.toLowerCase() !== s.toLowerCase()).join(', '))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: AMBER, padding: 0, lineHeight: 1, fontSize: 12 }}>×</button>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
