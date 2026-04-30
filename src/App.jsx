@@ -55,6 +55,10 @@ export default function App() {
         }
         .blob { animation: drift 18s ease-in-out infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes soundbar {
+          0%, 100% { transform: scaleY(0.3); opacity: 0.5; }
+          50% { transform: scaleY(1); opacity: 1; }
+        }
 
         input[type=range].amber {
           -webkit-appearance: none; appearance: none; height: 2px; background: ${INK}; outline: none;

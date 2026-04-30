@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MapPin, Sparkles, Loader2, Wind, RefreshCw, ExternalLink, Copy, Check } from 'lucide-react';
+import { Heart, MapPin, Sparkles, Loader2, Wind, RefreshCw, ExternalLink, Copy, Check, Radio, Square, SkipForward } from 'lucide-react';
 import { INK, INK_SOFT, AMBER, PAPER } from './constants.js';
-import { weatherInfo, hrZone, ruleBasedInfer, WEATHER } from './inference.js';
+import { weatherInfo, hrZone, ruleBasedInfer } from './inference.js';
 
 const ANALYZING_STEPS = ['reading the sky…', 'listening to your pulse…', 'parsing your words…', 'synthesizing…'];
 
@@ -14,10 +14,7 @@ export default function InstrumentView() {
   const [otherOpen, setOtherOpen] = useState(false);
   const [taste, setTaste] = useState('');
 
-  const notes = [
-    ...Array.from(selectedPresets),
-    customNote.trim(),
-  ].filter(Boolean).join('. ');
+  const notes = [...Array.from(selectedPresets), customNote.trim()].filter(Boolean).join('. ');
   const [mode, setMode] = useState(() => localStorage.getItem('attune-mode') || 'demo');
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzingStep, setAnalyzingStep] = useState(0);
@@ -45,28 +42,18 @@ export default function InstrumentView() {
   }, [analyzing]);
 
   useEffect(() => {
-    const fallback = () => {
-      setPlace('New York, NY');
-      setLocStatus('default');
-      fetchWeather(40.7128, -74.006);
-    };
+    const fallback = () => { setPlace('New York, NY'); setLocStatus('default'); fetchWeather(40.7128, -74.006); };
     if (!navigator.geolocation) return fallback();
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocStatus('located');
         try {
-          const r = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-          );
+          const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const d = await r.json();
-          const name = [d.city || d.locality, d.principalSubdivisionCode?.split('-')[1] || d.principalSubdivision]
-            .filter(Boolean)
-            .join(', ');
+          const name = [d.city || d.locality, d.principalSubdivisionCode?.split('-')[1] || d.principalSubdivision].filter(Boolean).join(', ');
           setPlace(name || 'Unknown');
-        } catch {
-          setPlace('Unknown');
-        }
+        } catch { setPlace('Unknown'); }
         fetchWeather(latitude, longitude);
       },
       () => fallback(),
@@ -76,14 +63,10 @@ export default function InstrumentView() {
 
   async function fetchWeather(lat, lon) {
     try {
-      const r = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph`
-      );
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph`);
       const d = await r.json();
       setWeather(d.current);
-    } catch (e) {
-      console.error('weather', e);
-    }
+    } catch (e) { console.error('weather', e); }
   }
 
   async function analyze() {
@@ -91,9 +74,7 @@ export default function InstrumentView() {
     setAnalyzing(true);
     setError(null);
     setReading(null);
-
     const signals = { place, weather, bpm, notes, taste };
-
     try {
       let result;
       if (mode === 'ai') {
@@ -101,23 +82,11 @@ export default function InstrumentView() {
         const payload = {
           place: place || 'unknown',
           localTime: new Date().toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }),
-          weather: weather
-            ? `${Math.round(weather.temperature_2m)}°F (feels ${Math.round(weather.apparent_temperature)}°F), ${wInfo.label}, ${weather.cloud_cover}% cloud, wind ${Math.round(weather.wind_speed_10m)} mph, humidity ${weather.relative_humidity_2m}%, ${weather.is_day ? 'daytime' : 'night'}`
-            : 'unavailable',
-          bpm,
-          hrZone: hrZone(bpm),
-          notes: notes.trim() || null,
-          taste: taste.trim() || null,
+          weather: weather ? `${Math.round(weather.temperature_2m)}°F (feels ${Math.round(weather.apparent_temperature)}°F), ${wInfo.label}, ${weather.cloud_cover}% cloud, wind ${Math.round(weather.wind_speed_10m)} mph, humidity ${weather.relative_humidity_2m}%, ${weather.is_day ? 'daytime' : 'night'}` : 'unavailable',
+          bpm, hrZone: hrZone(bpm), notes: notes.trim() || null, taste: taste.trim() || null,
         };
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          throw new Error(errBody.error || `Request failed (${res.status})`);
-        }
+        const res = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) { const errBody = await res.json().catch(() => ({})); throw new Error(errBody.error || `Request failed (${res.status})`); }
         result = await res.json();
       } else {
         await new Promise((r) => setTimeout(r, 600));
@@ -137,23 +106,21 @@ export default function InstrumentView() {
   return (
     <>
       {reading && (
-        <div
-          className="blob"
-          style={{
-            position: 'absolute', top: '-10%', right: '-15%',
-            width: '60vw', height: '60vw', maxWidth: 800, maxHeight: 800,
-            borderRadius: '50%',
-            background: `radial-gradient(circle, ${moodColor}55, transparent 60%)`,
-            filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0,
-          }}
-        />
+        <div className="blob" style={{
+          position: 'absolute', top: '-10%', right: '-15%',
+          width: '60vw', height: '60vw', maxWidth: 800, maxHeight: 800,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${moodColor}55, transparent 60%)`,
+          filter: 'blur(60px)', pointerEvents: 'none', zIndex: 0,
+        }} />
       )}
 
+      {/* Two-column: signals + reading */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 36, position: 'relative', zIndex: 1 }}>
+
         {/* LEFT: SIGNAL PANEL */}
         <section>
           <SectionLabel n="01" label="Ambient signals" />
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, border: `1px solid ${INK}`, marginBottom: 24 }}>
             <Cell label="Where">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -171,18 +138,12 @@ export default function InstrumentView() {
                     {Math.round(weather.temperature_2m)}° · {wInfo.label}
                   </span>
                 </div>
-              ) : (
-                <span style={{ color: INK_SOFT }}>fetching…</span>
-              )}
+              ) : <span style={{ color: INK_SOFT }}>fetching…</span>}
             </Cell>
             {weather && (
               <>
-                <Cell label="Wind" top>
-                  <Mono><Wind size={11} strokeWidth={1.5} style={{ display: 'inline', marginRight: 6 }} />{Math.round(weather.wind_speed_10m)} mph</Mono>
-                </Cell>
-                <Cell label="Humidity" top border>
-                  <Mono>{weather.relative_humidity_2m}%</Mono>
-                </Cell>
+                <Cell label="Wind" top><Mono><Wind size={11} strokeWidth={1.5} style={{ display: 'inline', marginRight: 6 }} />{Math.round(weather.wind_speed_10m)} mph</Mono></Cell>
+                <Cell label="Humidity" top border><Mono>{weather.relative_humidity_2m}%</Mono></Cell>
               </>
             )}
           </div>
@@ -192,21 +153,14 @@ export default function InstrumentView() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Heart size={16} fill={AMBER} stroke={AMBER} style={{ animation: `pulse ${60 / bpm * 1.2}s ease-in-out infinite` }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: INK_SOFT }}>
-                  Heart rate
-                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: INK_SOFT }}>Heart rate</span>
               </div>
               <div>
                 <span style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 36, lineHeight: 1 }}>{bpm}</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: INK_SOFT, marginLeft: 6 }}>BPM</span>
               </div>
             </div>
-            <input
-              type="range" min="40" max="160" value={bpm}
-              onChange={(e) => setBpm(parseInt(e.target.value))}
-              className="amber"
-              style={{ width: '100%' }}
-            />
+            <input type="range" min="40" max="160" value={bpm} onChange={(e) => setBpm(parseInt(e.target.value))} className="amber" style={{ width: '100%' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
               <Mono>40</Mono>
               <Mono style={{ color: AMBER }}>{hrZone(bpm)}</Mono>
@@ -215,203 +169,469 @@ export default function InstrumentView() {
           </div>
 
           <SectionLabel n="03" label="What's on your mind" />
-          <NotesSelector
-            selected={selectedPresets}
-            setSelected={setSelectedPresets}
-            customNote={customNote}
-            setCustomNote={setCustomNote}
-            otherOpen={otherOpen}
-            setOtherOpen={setOtherOpen}
-          />
+          <NotesSelector selected={selectedPresets} setSelected={setSelectedPresets} customNote={customNote} setCustomNote={setCustomNote} otherOpen={otherOpen} setOtherOpen={setOtherOpen} />
 
           <SectionLabel n="04" label="What you like to listen to" />
           <input
             type="text" value={taste} onChange={(e) => setTaste(e.target.value)}
             placeholder="e.g. Taylor Swift, The Weeknd, Fleetwood Mac, Coldplay, Frank Ocean…"
-            style={{
-              width: '100%', background: 'transparent', border: `1px solid ${INK}`,
-              padding: 14, fontSize: 15, color: INK, outline: 'none',
-              marginBottom: 28, fontFamily: "'Fraunces', serif", fontStyle: 'italic',
-              boxSizing: 'border-box',
-            }}
+            style={{ width: '100%', background: 'transparent', border: `1px solid ${INK}`, padding: 14, fontSize: 15, color: INK, outline: 'none', marginBottom: 28, fontFamily: "'Fraunces', serif", fontStyle: 'italic', boxSizing: 'border-box' }}
           />
 
           <button
-            onClick={analyze}
-            disabled={analyzing}
-            style={{
-              width: '100%', background: INK, color: PAPER, border: 'none',
-              padding: '20px 24px',
-              fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic',
-              letterSpacing: '-0.01em',
-              cursor: analyzing ? 'wait' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-              transition: 'transform 0.15s ease',
-            }}
+            onClick={analyze} disabled={analyzing}
+            style={{ width: '100%', background: INK, color: PAPER, border: 'none', padding: '20px 24px', fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic', letterSpacing: '-0.01em', cursor: analyzing ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, transition: 'transform 0.15s ease' }}
             onMouseDown={(e) => !analyzing && (e.currentTarget.style.transform = 'translateY(2px)')}
             onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
             onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
           >
-            {analyzing ? (
-              <>
-                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
-                Listening…
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} fill={AMBER} stroke={AMBER} />
-                {reading ? 'Re-tune' : 'Tune in'}
-              </>
-            )}
+            {analyzing ? (<><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />Listening…</>) : (<><Sparkles size={18} fill={AMBER} stroke={AMBER} />{reading ? 'Re-tune' : 'Tune in'}</>)}
           </button>
-
           <ModeToggle mode={mode} setMode={setMode} />
         </section>
 
-        {/* RIGHT: READING */}
+        {/* RIGHT: READING (mood + text + strategy only) */}
         <section style={{ minHeight: 400, position: 'relative' }}>
           {!reading && !analyzing && !error && <EmptyState />}
-
           {analyzing && (
             <div style={{ paddingTop: 80, textAlign: 'center', color: INK_SOFT }}>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic', marginBottom: 16, minHeight: 36 }}>
-                {ANALYZING_STEPS[analyzingStep]}
-              </div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic', marginBottom: 16, minHeight: 36 }}>{ANALYZING_STEPS[analyzingStep]}</div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
                 {ANALYZING_STEPS.map((_, i) => (
-                  <div key={i} style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: i === analyzingStep ? AMBER : 'transparent',
-                    border: `1px solid ${i === analyzingStep ? AMBER : INK_SOFT}`,
-                    transition: 'background 0.3s ease, border-color 0.3s ease',
-                  }} />
+                  <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === analyzingStep ? AMBER : 'transparent', border: `1px solid ${i === analyzingStep ? AMBER : INK_SOFT}`, transition: 'background 0.3s ease, border-color 0.3s ease' }} />
                 ))}
               </div>
             </div>
           )}
-
           {error && (
             <div style={{ border: `1px solid ${INK}`, padding: 24 }}>
               <Mono style={{ color: AMBER, marginBottom: 8 }}>ERROR</Mono>
               <div style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 18 }}>{error}</div>
               <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={analyze} style={errBtn}>
-                  <RefreshCw size={12} style={{ display: 'inline', marginRight: 6 }} />
-                  Try again
-                </button>
-                {mode === 'ai' && (
-                  <button onClick={() => { setMode('demo'); setError(null); }} style={errBtn}>
-                    Switch to demo mode
-                  </button>
-                )}
+                <button onClick={analyze} style={errBtn}><RefreshCw size={12} style={{ display: 'inline', marginRight: 6 }} />Try again</button>
+                {mode === 'ai' && <button onClick={() => { setMode('demo'); setError(null); }} style={errBtn}>Switch to demo mode</button>}
               </div>
             </div>
           )}
-
-          {reading && <Reading data={reading} moodColor={moodColor} />}
+          {reading && <ReadingCard data={reading} moodColor={moodColor} />}
         </section>
       </div>
+
+      {/* FULL-WIDTH: TRACKS + RADIO */}
+      {reading && (
+        <div style={{ marginTop: 40, position: 'relative', zIndex: 1 }}>
+          <TrackSection tracks={reading.tracks} moodColor={moodColor} readingText={reading.reading} strategyName={reading.strategy?.name} />
+        </div>
+      )}
     </>
   );
 }
 
-function ModeToggle({ mode, setMode }) {
+// ─── Reading card (no tracks) ───────────────────────────────────────────────
+
+function ReadingCard({ data, moodColor }) {
+  const { mood, reading, strategy } = data;
+  const [copied, setCopied] = useState(false);
+
+  function share() {
+    const lines = [
+      `Attune · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`,
+      '', `${mood.primary}, ${mood.secondary}`,
+      `Intensity ${Math.round((mood.intensity || 0) * 10)}/10 · Valence: ${mood.valence}`,
+      '', reading, '',
+      `Strategy: ${strategy.name} — ${strategy.rationale}`,
+      '', 'Prescription:',
+      ...(data.tracks || []).map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`),
+    ];
+    navigator.clipboard.writeText(lines.join('\n')).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12, marginTop: 14,
-      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em',
-      color: INK_SOFT, textTransform: 'uppercase',
-    }}>
-      <span>Inference:</span>
-      <button onClick={() => setMode('demo')} style={modeBtn(mode === 'demo')}>
-        <span style={{ ...dotStyle, background: mode === 'demo' ? INK_SOFT : 'transparent', border: `1px solid ${INK_SOFT}` }} />
-        Demo
-      </button>
-      <button onClick={() => setMode('ai')} style={modeBtn(mode === 'ai')}>
-        <span style={{ ...dotStyle, background: mode === 'ai' ? AMBER : 'transparent', border: `1px solid ${AMBER}` }} />
-        AI · Claude
-      </button>
+    <div className="rise" style={{ position: 'relative', zIndex: 1 }}>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <Mono style={{ display: 'block' }}>THE READING</Mono>
+        <button onClick={share} style={{ background: 'transparent', border: `1px solid ${copied ? AMBER : INK}`, cursor: 'pointer', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em', color: copied ? AMBER : INK_SOFT, textTransform: 'uppercase', transition: 'color 0.2s ease, border-color 0.2s ease' }}>
+          {copied ? <Check size={10} /> : <Copy size={10} />}{copied ? 'Copied' : 'Share'}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 'clamp(40px, 6vw, 64px)', fontStyle: 'italic', fontWeight: 400, lineHeight: 1, letterSpacing: '-0.03em', fontVariationSettings: "'opsz' 144, 'SOFT' 80" }}>
+          <span style={{ color: moodColor }}>{mood.primary}</span>
+          <span style={{ color: INK_SOFT }}>, </span>
+          <span>{mood.secondary}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Meter value={mood.intensity} color={moodColor} />
+          <Mono>VALENCE · {mood.valence?.toUpperCase()}</Mono>
+        </div>
+      </div>
+
+      <p style={{ fontFamily: "'Fraunces', serif", fontSize: 19, lineHeight: 1.5, fontStyle: 'italic', margin: '18px 0 28px', color: INK }}>{reading}</p>
+
+      <div style={{ borderTop: `1px solid ${INK}`, borderBottom: `1px solid ${INK}`, padding: '14px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <Mono>STRATEGY</Mono>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic' }}>
+              <span style={{ color: moodColor }}>↳</span> {strategy.name}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, color: INK_SOFT, maxWidth: 320, lineHeight: 1.5 }}>{strategy.rationale}</div>
+        </div>
+      </div>
     </div>
   );
 }
 
-const dotStyle = { width: 6, height: 6, borderRadius: '50%', display: 'inline-block' };
+// ─── Track Section (full-width, manages radio state) ─────────────────────────
 
-function modeBtn(active) {
-  return {
-    background: 'transparent', border: 'none', cursor: 'pointer',
-    fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit',
-    color: active ? INK : INK_SOFT,
-    textTransform: 'uppercase',
-    display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
-  };
-}
+function TrackSection({ tracks, moodColor, readingText, strategyName }) {
+  const [spotifyIds, setSpotifyIds] = useState({});
+  const [radioOn, setRadioOn] = useState(false);
+  const [radioIdx, setRadioIdx] = useState(-1);   // -1 = intro, 0..N-1 = track, N = outro
+  const [radioPhase, setRadioPhase] = useState('idle');  // 'speaking' | 'music'
+  const [speechText, setSpeechText] = useState('');
+  const [preloadIdx, setPreloadIdx] = useState(null); // track iframe to mount during speech for overlap
+  const timerRef = useRef(null);
+  const overlapTimerRef = useRef(null);
 
-const errBtn = {
-  background: 'transparent', border: `1px solid ${INK}`,
-  padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit',
-  fontSize: 13, color: INK,
-};
-
-const NOTE_PRESETS = [
-  "Can't focus", 'Stressed', 'Anxious', 'Tired but wired',
-  'Feeling down', 'Bored', 'Missing someone', 'Restless',
-  'Overwhelmed', 'Feeling good', 'Lonely', 'Excited',
-];
-
-function NotesSelector({ selected, setSelected, customNote, setCustomNote, otherOpen, setOtherOpen }) {
-  function toggle(preset) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(preset) ? next.delete(preset) : next.add(preset);
-      return next;
+  useEffect(() => {
+    if (!tracks?.length) return;
+    setSpotifyIds({});
+    tracks.forEach((t, i) => {
+      fetch(`/api/spotify-search?q=${encodeURIComponent(`${t.title} ${t.artist}`)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.id) setSpotifyIds(prev => ({ ...prev, [i]: d.id })); })
+        .catch(() => {});
     });
+  }, [tracks]);
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+      clearTimeout(timerRef.current);
+      clearTimeout(overlapTimerRef.current);
+    };
+  }, []);
+
+  // Speak text, then call onEnd. If nextIdx is provided, mounts that track's iframe
+  // ~4 seconds before speech ends so music begins under the DJ's last words.
+  function speak(text, onEnd, nextIdx) {
+    window.speechSynthesis.cancel();
+    clearTimeout(overlapTimerRef.current);
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.88;
+    utt.pitch = 0.95;
+
+    if (nextIdx !== undefined && nextIdx !== null && nextIdx < tracks.length) {
+      // Estimate speech duration: ~130 wpm × rate 0.88 ≈ 114 wpm
+      const words = text.trim().split(/\s+/).length;
+      const estimatedMs = (words / 114) * 60000;
+      const overlapAt = Math.max(800, estimatedMs - 4000);
+      utt.onstart = () => {
+        overlapTimerRef.current = setTimeout(() => setPreloadIdx(nextIdx), overlapAt);
+      };
+    }
+
+    utt.onend = () => { clearTimeout(overlapTimerRef.current); onEnd(); };
+    window.speechSynthesis.speak(utt);
   }
 
+  function startRadio() {
+    clearTimeout(timerRef.current);
+    clearTimeout(overlapTimerRef.current);
+    setPreloadIdx(null);
+    setRadioOn(true);
+    setRadioIdx(-1);
+    setRadioPhase('speaking');
+    const first = tracks[0];
+    const intro = `${readingText} Here is your first track — ${first.title} by ${first.artist}. ${first.why}`;
+    setSpeechText(intro);
+    speak(intro, () => advanceTo(0), 0);
+  }
+
+  function advanceTo(idx) {
+    setPreloadIdx(null);
+    if (idx >= tracks.length) {
+      const outro = `That was your Attune session. The strategy was ${strategyName}. Hope this brought you a little closer to yourself.`;
+      setRadioIdx(tracks.length);
+      setRadioPhase('speaking');
+      setSpeechText(outro);
+      speak(outro, () => { setRadioOn(false); setRadioIdx(-1); setRadioPhase('idle'); setSpeechText(''); });
+      return;
+    }
+    setRadioIdx(idx);
+    setRadioPhase('music');
+    setSpeechText('');
+    // auto-advance after 45 seconds
+    timerRef.current = setTimeout(() => {
+      window.speechSynthesis.cancel();
+      const next = tracks[idx + 1];
+      const between = idx + 1 < tracks.length
+        ? `Up next — ${next.title} by ${next.artist}. ${next.why}`
+        : `And that brings us to the final track.`;
+      setRadioPhase('speaking');
+      setSpeechText(between);
+      speak(between, () => advanceTo(idx + 1), idx + 1);
+    }, 45000);
+  }
+
+  function skipCurrent() {
+    clearTimeout(timerRef.current);
+    clearTimeout(overlapTimerRef.current);
+    window.speechSynthesis.cancel();
+    setPreloadIdx(null);
+    const next = tracks[radioIdx + 1];
+    const between = radioIdx + 1 < tracks.length
+      ? `Skipping ahead — ${next.title} by ${next.artist}. ${next.why}`
+      : `And that's the end of the session.`;
+    setRadioPhase('speaking');
+    setSpeechText(between);
+    speak(between, () => advanceTo(radioIdx + 1), radioIdx + 1);
+  }
+
+  function stopRadio() {
+    window.speechSynthesis.cancel();
+    clearTimeout(timerRef.current);
+    clearTimeout(overlapTimerRef.current);
+    setRadioOn(false);
+    setRadioIdx(-1);
+    setRadioPhase('idle');
+    setSpeechText('');
+    setPreloadIdx(null);
+  }
+
+  if (!tracks?.length) return null;
+
+  if (radioOn) {
+    return (
+      <RadioView
+        tracks={tracks}
+        spotifyIds={spotifyIds}
+        moodColor={moodColor}
+        radioIdx={radioIdx}
+        radioPhase={radioPhase}
+        speechText={speechText}
+        preloadIdx={preloadIdx}
+        onSkip={skipCurrent}
+        onStop={stopRadio}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <Mono>THE PRESCRIPTION · {tracks.length} TRACKS</Mono>
+        <div style={{ flex: 1, borderBottom: `1px solid ${INK}` }} />
+        <button onClick={startRadio} style={{ background: INK, color: PAPER, border: 'none', padding: '8px 18px', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <Radio size={12} /> DJ Mode
+        </button>
+      </div>
+      {/* border-top/left on container + border-right/bottom on each cell = clean grid borders */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 0, borderTop: `1px solid ${INK}`, borderLeft: `1px solid ${INK}`, background: PAPER }}>
+        {tracks.map((t, i) => <TrackCard key={i} t={t} i={i} accent={moodColor} spotifyId={spotifyIds[i]} />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── Radio View ────────────────────────────────────────────────────────────
+// The Spotify iframe is always rendered at the SAME position in the DOM tree
+// so React never remounts it when we transition from speaking→music. This lets
+// the music that started under the DJ's voice continue playing seamlessly.
+
+function RadioView({ tracks, spotifyIds, moodColor, radioIdx, radioPhase, speechText, preloadIdx, onSkip, onStop }) {
+  // Which track's iframe should be shown (preload during speech, or current during music)
+  const iframeTrackIdx = preloadIdx !== null ? preloadIdx : (radioIdx >= 0 && radioIdx < tracks.length ? radioIdx : null);
+  const currentTrack = radioIdx >= 0 && radioIdx < tracks.length ? tracks[radioIdx] : null;
+  const iframeTrack = iframeTrackIdx !== null ? tracks[iframeTrackIdx] : null;
+  const spotifyId = iframeTrackIdx !== null ? spotifyIds[iframeTrackIdx] : null;
+  const showIframe = iframeTrackIdx !== null && (radioPhase === 'music' || preloadIdx !== null);
+
+  return (
+    <div style={{ border: `1px solid ${INK}` }}>
+      {/* Header bar */}
+      <div style={{ background: INK, color: PAPER, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: AMBER, animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          Attune Radio · On Air
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={onStop} style={{ background: 'transparent', color: `${PAPER}99`, border: `1px solid ${PAPER}33`, padding: '4px 12px', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Square size={9} fill="currentColor" /> Stop
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px' }}>
+        {/* Main panel */}
+        <div style={{ padding: 28, minHeight: 300, borderRight: `1px solid ${INK}` }}>
+
+          {/* Speaking phase content */}
+          {radioPhase === 'speaking' && (
+            <div style={{ marginBottom: showIframe ? 24 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 24, marginBottom: 18 }}>
+                {[0.55, 1, 0.7, 0.85, 0.6, 0.95, 0.75].map((h, i) => (
+                  <div key={i} style={{ width: 4, height: 20, background: AMBER, transformOrigin: 'bottom', animation: `soundbar ${0.5 + (i % 3) * 0.12}s ease-in-out infinite`, animationDelay: `${i * 0.07}s` }} />
+                ))}
+                <Mono style={{ marginLeft: 12, alignSelf: 'center' }}>The DJ is speaking…</Mono>
+              </div>
+              <p style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontStyle: 'italic', lineHeight: 1.6, color: INK, maxWidth: 520, margin: 0 }}>
+                {speechText}
+              </p>
+            </div>
+          )}
+
+          {/* Music phase: track title + skip button */}
+          {radioPhase === 'music' && currentTrack && (
+            <div style={{ marginBottom: 20 }}>
+              <Mono style={{ display: 'block', marginBottom: 14 }}>
+                NOW PLAYING · {String(radioIdx + 1).padStart(2, '0')} / {String(tracks.length).padStart(2, '0')}
+              </Mono>
+              <div style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 'clamp(28px, 4vw, 46px)', lineHeight: 1, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                {currentTrack.title}
+              </div>
+              <div style={{ fontSize: 14, color: INK_SOFT, marginBottom: 20 }}>by {currentTrack.artist}</div>
+            </div>
+          )}
+
+          {/* Overlap indicator: music starting under DJ voice */}
+          {radioPhase === 'speaking' && preloadIdx !== null && iframeTrack && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 12 }}>
+                {[0.6, 1, 0.7, 0.9, 0.5].map((h, i) => (
+                  <div key={i} style={{ width: 3, height: `${h * 12}px`, background: moodColor, transformOrigin: 'bottom', animation: `soundbar ${0.4 + i * 0.08}s ease-in-out infinite`, animationDelay: `${i * 0.05}s` }} />
+                ))}
+              </div>
+              <Mono style={{ color: moodColor }}>♪ {iframeTrack.title} · starting…</Mono>
+            </div>
+          )}
+
+          {/* The iframe — always at this exact DOM position. React key = track index,
+              so it never remounts when speaking→music, letting music continue seamlessly. */}
+          {spotifyId ? (
+            <div style={{ overflow: 'hidden', transition: 'height 0.6s ease', height: radioPhase === 'music' ? 152 : 80, display: showIframe ? 'block' : 'none' }}>
+              <iframe
+                key={`spotify-${iframeTrackIdx}`}
+                src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0&autoplay=1`}
+                width="100%" height="152" frameBorder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                style={{ border: 'none', display: 'block' }}
+              />
+            </div>
+          ) : showIframe ? (
+            <div style={{ height: radioPhase === 'music' ? 152 : 80, background: `${INK}08`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: INK_SOFT }} />
+            </div>
+          ) : null}
+
+          {radioPhase === 'music' && (
+            <div style={{ marginTop: 20 }}>
+              <button onClick={onSkip} style={{ background: 'transparent', border: `1px solid ${INK}`, padding: '8px 18px', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: INK_SOFT, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <SkipForward size={12} /> Skip
+              </button>
+            </div>
+          )}
+
+          {radioPhase !== 'speaking' && radioPhase !== 'music' && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', paddingTop: 60 }}>
+              <Mono>One moment…</Mono>
+            </div>
+          )}
+        </div>
+
+        {/* Track list sidebar */}
+        <div>
+          {tracks.map((t, i) => {
+            const isPast = i < radioIdx;
+            const isCurrent = i === radioIdx || i === preloadIdx;
+            return (
+              <div key={i} style={{ padding: '12px 16px', borderBottom: i < tracks.length - 1 ? `1px solid ${INK}22` : 'none', background: isCurrent ? `${moodColor}18` : 'transparent', opacity: isPast ? 0.35 : 1, transition: 'opacity 0.4s ease, background 0.4s ease' }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: isCurrent ? moodColor : INK_SOFT, marginBottom: 3, letterSpacing: '0.08em' }}>
+                  {String(i + 1).padStart(2, '0')} {isPast ? '✓' : isCurrent ? '▶' : ''}
+                </div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 14, lineHeight: 1.3, color: isCurrent ? INK : INK_SOFT }}>{t.title}</div>
+                <div style={{ fontSize: 11, color: INK_SOFT }}>{t.artist}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Track card (grid view) ───────────────────────────────────────────────
+
+function TrackCard({ t, i, accent, spotifyId }) {
+  const q = encodeURIComponent(`${t.title} ${t.artist}`);
+  return (
+    <div style={{ padding: 20, background: PAPER, borderRight: `1px solid ${INK}`, borderBottom: `1px solid ${INK}` }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: accent, letterSpacing: '0.1em', marginBottom: 5 }}>
+            {String(i + 1).padStart(2, '0')}
+          </div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.01em' }}>{t.title}</div>
+          <div style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>by {t.artist}</div>
+        </div>
+        <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
+          Open <ExternalLink size={10} />
+        </a>
+      </div>
+      <div style={{ fontSize: 13, color: INK_SOFT, lineHeight: 1.55, marginBottom: 12 }}>{t.why}</div>
+      {spotifyId ? (
+        <iframe src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0`} width="100%" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ border: 'none', display: 'block' }} />
+      ) : (
+        <div style={{ height: 80, background: `${INK}08`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: INK_SOFT }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Shared helpers ────────────────────────────────────────────────────────
+
+function ModeToggle({ mode, setMode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em', color: INK_SOFT, textTransform: 'uppercase' }}>
+      <span>Inference:</span>
+      <button onClick={() => setMode('demo')} style={modeBtn(mode === 'demo')}>
+        <span style={{ ...dotStyle, background: mode === 'demo' ? INK_SOFT : 'transparent', border: `1px solid ${INK_SOFT}` }} />Demo
+      </button>
+      <button onClick={() => setMode('ai')} style={modeBtn(mode === 'ai')}>
+        <span style={{ ...dotStyle, background: mode === 'ai' ? AMBER : 'transparent', border: `1px solid ${AMBER}` }} />AI · Claude
+      </button>
+    </div>
+  );
+}
+const dotStyle = { width: 6, height: 6, borderRadius: '50%', display: 'inline-block' };
+function modeBtn(active) {
+  return { background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', color: active ? INK : INK_SOFT, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0 };
+}
+
+const errBtn = { background: 'transparent', border: `1px solid ${INK}`, padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: INK };
+
+const NOTE_PRESETS = ["Can't focus", 'Stressed', 'Anxious', 'Tired but wired', 'Feeling down', 'Bored', 'Missing someone', 'Restless', 'Overwhelmed', 'Feeling good', 'Lonely', 'Excited'];
+
+function NotesSelector({ selected, setSelected, customNote, setCustomNote, otherOpen, setOtherOpen }) {
+  function toggle(p) { setSelected(prev => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; }); }
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: otherOpen ? 10 : 0 }}>
         {NOTE_PRESETS.map(p => {
           const active = selected.has(p);
           return (
-            <button key={p} onClick={() => toggle(p)} style={{
-              background: active ? INK : 'transparent',
-              color: active ? PAPER : INK,
-              border: `1px solid ${active ? INK : INK_SOFT}`,
-              padding: '7px 14px',
-              fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 14,
-              cursor: 'pointer',
-              transition: 'background 0.15s ease, color 0.15s ease',
-            }}>
-              {p}
-            </button>
+            <button key={p} onClick={() => toggle(p)} style={{ background: active ? INK : 'transparent', color: active ? PAPER : INK, border: `1px solid ${active ? INK : INK_SOFT}`, padding: '7px 14px', fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: 14, cursor: 'pointer', transition: 'background 0.15s ease, color 0.15s ease' }}>{p}</button>
           );
         })}
-        <button onClick={() => { setOtherOpen(o => !o); }} style={{
-          background: otherOpen ? AMBER : 'transparent',
-          color: otherOpen ? PAPER : INK_SOFT,
-          border: `1px solid ${otherOpen ? AMBER : INK_SOFT}`,
-          padding: '7px 14px',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.1em',
-          textTransform: 'uppercase', cursor: 'pointer',
-          transition: 'background 0.15s ease, color 0.15s ease',
-        }}>
-          Other…
-        </button>
+        <button onClick={() => setOtherOpen(o => !o)} style={{ background: otherOpen ? AMBER : 'transparent', color: otherOpen ? PAPER : INK_SOFT, border: `1px solid ${otherOpen ? AMBER : INK_SOFT}`, padding: '7px 14px', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.15s ease, color 0.15s ease' }}>Other…</button>
       </div>
       {otherOpen && (
-        <textarea
-          value={customNote} onChange={e => setCustomNote(e.target.value)}
-          placeholder="A thought you can't shake…"
-          rows={3}
-          autoFocus
-          style={{
-            width: '100%', background: 'transparent', border: `1px solid ${INK}`,
-            padding: 14, fontSize: 15, color: INK, resize: 'vertical', outline: 'none',
-            fontStyle: 'italic', fontFamily: "'Fraunces', serif", boxSizing: 'border-box',
-            marginTop: 2,
-          }}
-        />
+        <textarea value={customNote} onChange={e => setCustomNote(e.target.value)} placeholder="A thought you can't shake…" rows={3} autoFocus
+          style={{ width: '100%', background: 'transparent', border: `1px solid ${INK}`, padding: 14, fontSize: 15, color: INK, resize: 'vertical', outline: 'none', fontStyle: 'italic', fontFamily: "'Fraunces', serif", boxSizing: 'border-box', marginTop: 2 }} />
       )}
     </div>
   );
@@ -429,133 +649,16 @@ function SectionLabel({ n, label }) {
 
 function Cell({ children, label, top, border }) {
   return (
-    <div style={{
-      padding: 14,
-      borderTop: top ? `1px solid ${INK}` : 'none',
-      borderLeft: border ? `1px solid ${INK}` : 'none',
-    }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: INK_SOFT, marginBottom: 6 }}>
-        {label}
-      </div>
+    <div style={{ padding: 14, borderTop: top ? `1px solid ${INK}` : 'none', borderLeft: border ? `1px solid ${INK}` : 'none' }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: INK_SOFT, marginBottom: 6 }}>{label}</div>
       {children}
     </div>
   );
 }
 
 function Mono({ children, style }) {
-  return (
-    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.05em', color: INK_SOFT, ...style }}>
-      {children}
-    </span>
-  );
+  return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: '0.05em', color: INK_SOFT, ...style }}>{children}</span>;
 }
-
-function EmptyState() {
-  return (
-    <div style={{ paddingTop: 60 }}>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 'clamp(28px, 4vw, 42px)', fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.02em' }}>
-        Every feeling is a <span style={{ color: AMBER }}>signal</span>—<br/>
-        from outside, and from in.
-      </div>
-      <div style={{ marginTop: 18, fontSize: 15, color: INK_SOFT, maxWidth: 420, lineHeight: 1.55 }}>
-        Tell Attune what's around you and what's inside you. It will read the constellation of signals and prescribe a sound to meet you where you are—and walk you a step toward brighter.
-      </div>
-      <div style={{ marginTop: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: INK_SOFT, letterSpacing: '0.15em' }}>
-        ↙ &nbsp; START ON THE LEFT
-      </div>
-    </div>
-  );
-}
-
-function Reading({ data, moodColor }) {
-  const { mood, reading, strategy, tracks } = data;
-  const [copied, setCopied] = useState(false);
-  const [spotifyIds, setSpotifyIds] = useState({});
-
-  useEffect(() => {
-    if (!tracks?.length) return;
-    setSpotifyIds({});
-    tracks.forEach((t, i) => {
-      fetch(`/api/spotify-search?q=${encodeURIComponent(`${t.title} ${t.artist}`)}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.id) setSpotifyIds(prev => ({ ...prev, [i]: d.id })); })
-        .catch(() => {});
-    });
-  }, [tracks]);
-
-  function share() {
-    const lines = [
-      `Attune · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`,
-      ``, `${mood.primary}, ${mood.secondary}`,
-      `Intensity ${Math.round((mood.intensity || 0) * 10)}/10 · Valence: ${mood.valence}`,
-      ``, reading, ``,
-      `Strategy: ${strategy.name} — ${strategy.rationale}`,
-      ``, `Prescription:`,
-      ...(tracks || []).map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`),
-    ];
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  return (
-    <div className="rise" style={{ position: 'relative', zIndex: 1 }}>
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <Mono style={{ marginBottom: 8, display: 'block' }}>THE READING</Mono>
-        <button onClick={share} style={{
-          background: 'transparent', border: `1px solid ${INK}`, cursor: 'pointer',
-          padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.1em',
-          color: copied ? AMBER : INK_SOFT, textTransform: 'uppercase',
-          transition: 'color 0.2s ease, border-color 0.2s ease',
-          borderColor: copied ? AMBER : INK,
-        }}>
-          {copied ? <Check size={10} /> : <Copy size={10} />}
-          {copied ? 'Copied' : 'Share'}
-        </button>
-      </div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{
-          fontFamily: "'Fraunces', serif", fontSize: 'clamp(40px, 6vw, 64px)',
-          fontStyle: 'italic', fontWeight: 400, lineHeight: 1,
-          letterSpacing: '-0.03em', fontVariationSettings: "'opsz' 144, 'SOFT' 80",
-        }}>
-          <span style={{ color: moodColor }}>{mood.primary}</span>
-          <span style={{ color: INK_SOFT }}>, </span>
-          <span>{mood.secondary}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Meter value={mood.intensity} color={moodColor} />
-          <Mono>VALENCE · {mood.valence?.toUpperCase()}</Mono>
-        </div>
-      </div>
-
-      <p style={{ fontFamily: "'Fraunces', serif", fontSize: 19, lineHeight: 1.5, fontStyle: 'italic', margin: '18px 0 28px', color: INK }}>
-        {reading}
-      </p>
-
-      <div style={{ borderTop: `1px solid ${INK}`, borderBottom: `1px solid ${INK}`, padding: '14px 0', marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <Mono>STRATEGY</Mono>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontStyle: 'italic', textTransform: 'lowercase' }}>
-            <span style={{ color: moodColor }}>↳</span> {strategy.name}
-          </div>
-        </div>
-        <div style={{ fontSize: 13, color: INK_SOFT, maxWidth: 320, lineHeight: 1.5 }}>
-          {strategy.rationale}
-        </div>
-      </div>
-
-      <Mono style={{ marginBottom: 14, display: 'block' }}>THE PRESCRIPTION · {tracks?.length || 0} TRACKS</Mono>
-
-      <div>
-        {tracks?.map((t, i) => <Track key={i} t={t} i={i} accent={moodColor} spotifyId={spotifyIds[i]} />)}
-      </div>
-    </div>
-  );
-}
-
 
 function Meter({ value, color }) {
   return (
@@ -563,60 +666,25 @@ function Meter({ value, color }) {
       <Mono>INTENSITY</Mono>
       <div style={{ display: 'flex', gap: 3 }}>
         {[...Array(10)].map((_, i) => (
-          <div key={i} style={{
-            width: 8, height: 14,
-            background: i < Math.round(value * 10) ? color : 'transparent',
-            border: `1px solid ${INK}`,
-          }} />
+          <div key={i} style={{ width: 8, height: 14, background: i < Math.round(value * 10) ? color : 'transparent', border: `1px solid ${INK}` }} />
         ))}
       </div>
     </div>
   );
 }
 
-function Track({ t, i, accent, spotifyId }) {
-  const q = encodeURIComponent(`${t.title} ${t.artist}`);
+function EmptyState() {
   return (
-    <div style={{ padding: '16px 0', borderBottom: `1px solid ${INK}33` }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', gap: 16, alignItems: 'start' }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent, letterSpacing: '0.1em', paddingTop: 4 }}>
-          {String(i + 1).padStart(2, '0')}
-        </div>
-        <div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
-            {t.title}
-          </div>
-          <div style={{ fontSize: 13, color: INK_SOFT, marginTop: 2 }}>by {t.artist}</div>
-          <div style={{ fontSize: 13, color: INK, marginTop: 8, lineHeight: 1.5, maxWidth: 500 }}>
-            {t.why}
-          </div>
-        </div>
-        <a href={`https://open.spotify.com/search/${q}`} target="_blank" rel="noreferrer" style={linkBtn}>
-          Open <ExternalLink size={10} />
-        </a>
+    <div style={{ paddingTop: 60 }}>
+      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 'clamp(28px, 4vw, 42px)', fontStyle: 'italic', lineHeight: 1.15, letterSpacing: '-0.02em' }}>
+        Every feeling is a <span style={{ color: AMBER }}>signal</span>—<br/>from outside, and from in.
       </div>
-      <div style={{ marginTop: 10 }}>
-        {spotifyId ? (
-          <iframe
-            src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0`}
-            width="100%" height="80" frameBorder="0"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy" style={{ border: 'none', display: 'block' }}
-          />
-        ) : (
-          <div style={{ height: 80, background: `${INK}08`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: INK_SOFT }} />
-          </div>
-        )}
+      <div style={{ marginTop: 18, fontSize: 15, color: INK_SOFT, maxWidth: 420, lineHeight: 1.55 }}>
+        Tell Attune what's around you and what's inside you. It will read the constellation of signals and prescribe a sound to meet you where you are—and walk you a step toward brighter.
       </div>
+      <div style={{ marginTop: 28, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: INK_SOFT, letterSpacing: '0.15em' }}>↙ &nbsp; START ON THE LEFT</div>
     </div>
   );
 }
 
-const linkBtn = {
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: 10, letterSpacing: '0.12em', color: INK,
-  textDecoration: 'none', border: `1px solid ${INK}`,
-  padding: '5px 9px', display: 'inline-flex', alignItems: 'center', gap: 5,
-  textTransform: 'uppercase', background: 'transparent', whiteSpace: 'nowrap',
-};
+const linkBtn = { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '0.12em', color: INK, textDecoration: 'none', border: `1px solid ${INK}`, padding: '5px 9px', display: 'inline-flex', alignItems: 'center', gap: 5, textTransform: 'uppercase', background: 'transparent', whiteSpace: 'nowrap' };
