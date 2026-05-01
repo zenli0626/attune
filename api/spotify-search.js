@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const track = data.tracks?.items?.[0];
     if (!track) return res.status(404).json({ error: 'Track not found' });
 
-    return res.status(200).json({ id: track.id });
+    return res.status(200).json({ id: track.id, preview_url: track.preview_url || null });
   } catch (e) {
     console.error('spotify-search error', e);
     return res.status(500).json({ error: e.message });

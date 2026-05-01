@@ -284,6 +284,7 @@ function ReadingCard({ data, moodColor }) {
 
 function TrackSection({ tracks, moodColor, readingText, strategyName }) {
   const [spotifyIds, setSpotifyIds] = useState({});
+  const [previewUrls, setPreviewUrls] = useState({});
   const [radioOn, setRadioOn] = useState(false);
   const [radioIdx, setRadioIdx] = useState(-1);   // -1 = intro, 0..N-1 = track, N = outro
   const [radioPhase, setRadioPhase] = useState('idle');  // 'speaking' | 'music'
@@ -295,7 +296,8 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
   const radioPhaseRef = useRef('idle');
   const radioOnRef = useRef(false);
   const advanceCallbackRef = useRef(null);
-  const audioRef = useRef(null); // ElevenLabs Audio element
+  const audioRef = useRef(null);      // ElevenLabs TTS speech
+  const musicAudioRef = useRef(null); // Spotify preview music
 
   // Keep refs in sync so async callbacks always read current values
   useEffect(() => { radioIdxRef.current = radioIdx; }, [radioIdx]);
@@ -308,7 +310,10 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
     tracks.forEach((t, i) => {
       fetch(`/api/spotify-search?q=${encodeURIComponent(`${t.title} ${t.artist}`)}`)
         .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.id) setSpotifyIds(prev => ({ ...prev, [i]: d.id })); })
+        .then(d => {
+          if (d?.id) setSpotifyIds(prev => ({ ...prev, [i]: d.id }));
+          if (d?.preview_url) setPreviewUrls(prev => ({ ...prev, [i]: d.preview_url }));
+        })
         .catch(() => {});
     });
   }, [tracks]);
@@ -349,6 +354,11 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
       audioRef.current.pause();
       audioRef.current.src = '';
       audioRef.current = null;
+    }
+    if (musicAudioRef.current) {
+      musicAudioRef.current.pause();
+      musicAudioRef.current.src = '';
+      musicAudioRef.current = null;
     }
     window.speechSynthesis?.cancel();
   }
@@ -462,9 +472,24 @@ function TrackSection({ tracks, moodColor, readingText, strategyName }) {
       speak(between, () => advanceTo(idx + 1), idx + 1);
     }
 
-    // Spotify postMessage listener will call this when the track ends naturally.
-    // Fallback: auto-advance after 4 minutes in case the event never fires.
     advanceCallbackRef.current = doAdvance;
+
+    // Play the 30-second Spotify preview — auto-advances when it ends
+    const previewUrl = previewUrls[idx];
+    if (previewUrl) {
+      const music = new Audio(previewUrl);
+      musicAudioRef.current = music;
+      music.volume = 0.85;
+      music.addEventListener('ended', () => {
+        musicAudioRef.current = null;
+        clearTimeout(timerRef.current);
+        const cb = advanceCallbackRef.current;
+        if (cb) { advanceCallbackRef.current = null; cb(); }
+      });
+      music.play().catch(e => console.warn('preview play failed', e));
+    }
+
+    // Fallback: 4 minutes if preview_url was missing or never ended
     timerRef.current = setTimeout(() => {
       const cb = advanceCallbackRef.current;
       if (cb) { advanceCallbackRef.current = null; cb(); }
@@ -610,7 +635,7 @@ function RadioView({ tracks, spotifyIds, moodColor, radioIdx, radioPhase, speech
             <div style={{ overflow: 'hidden', transition: 'height 0.6s ease', height: radioPhase === 'music' ? 152 : 80, display: showIframe ? 'block' : 'none' }}>
               <iframe
                 key={`spotify-${iframeTrackIdx}`}
-                src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0&autoplay=1`}
+                src={`https://open.spotify.com/embed/track/${spotifyId}?utm_source=generator&theme=0`}
                 width="100%" height="152" frameBorder="0"
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 style={{ border: 'none', display: 'block' }}
