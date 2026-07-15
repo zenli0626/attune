@@ -3,6 +3,7 @@ import { FONTS, PAPER, INK, INK_SOFT, AMBER, RULE } from './constants.js';
 import InstrumentView from './InstrumentView.jsx';
 import ArchitectureView from './ArchitectureView.jsx';
 import SoundGuideView from './SoundGuideView.jsx';
+import PianoView from './PianoView.jsx';
 
 export default function App() {
   const [tab, setTab] = useState('app');
@@ -114,11 +115,13 @@ export default function App() {
           <TabBtn active={tab === 'app'} onClick={() => setTab('app')}>The Instrument</TabBtn>
           <TabBtn active={tab === 'arch'} onClick={() => setTab('arch')}>Architecture</TabBtn>
           <TabBtn active={tab === 'guide'} onClick={() => setTab('guide')}>Sound Guide</TabBtn>
+          <TabBtn active={tab === 'piano'} onClick={() => setTab('piano')}>Piano</TabBtn>
         </div>
 
         {tab === 'app' && <InstrumentView />}
         {tab === 'arch' && <ArchitectureView />}
         {tab === 'guide' && <SoundGuideView />}
+        {tab === 'piano' && <PianoView />}
 
         <footer style={{
           borderTop: `1px solid ${INK}`, marginTop: 56, paddingTop: 18,
